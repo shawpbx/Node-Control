@@ -11,6 +11,7 @@ import {
   Save,
   SlidersHorizontal,
   Sun,
+  Terminal,
   X,
 } from 'lucide-react';
 import { DEFAULT_MMDVM_CONFIG } from './data/presets';
@@ -19,6 +20,7 @@ import { validateMmdvmConfig } from './utils/validation';
 import { useLocalNode } from './hooks/useLocalNode';
 import { LoginView } from './components/LoginView';
 import { DashboardView } from './components/DashboardView';
+import { ServicesLogsView } from './components/ServicesLogsView';
 import { ConfiguratorView } from './components/ConfiguratorView';
 import { InstallerView } from './components/InstallerView';
 import { ConfigFilesView } from './components/ConfigFilesView';
@@ -46,6 +48,7 @@ const NAV_ITEMS: {
   icon: typeof Activity;
 }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: Activity },
+  { id: 'services', label: 'Services & Logs', icon: Terminal },
   { id: 'configurator', label: 'Configurator', icon: SlidersHorizontal },
   { id: 'installer', label: 'Installer', icon: HardDriveDownload },
   { id: 'files', label: 'Config Files', icon: FileCode2 },
@@ -53,6 +56,7 @@ const NAV_ITEMS: {
 
 const VIEW_TITLES: Record<WorkspaceView, string> = {
   dashboard: 'Dashboard',
+  services: 'Services & Logs',
   configurator: 'Configurator',
   installer: 'Installer',
   files: 'Config Files',
@@ -364,6 +368,14 @@ export default function App() {
               hasErrors={hasErrors}
               localNode={localNode}
               onApplyConfig={handleApplyConfig}
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          {view === 'services' && (
+            <ServicesLogsView
+              config={config}
+              localNode={localNode}
               onNavigate={handleNavigate}
             />
           )}

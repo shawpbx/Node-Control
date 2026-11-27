@@ -6,14 +6,12 @@ import {
   Pause,
   Play,
   RefreshCw,
-  RotateCw,
   Save,
   Search,
-  Square,
   Unlink,
 } from 'lucide-react';
 import { ConfigTab, MmdvmConfiguration, WorkspaceView } from '../types/mmdvmConfig';
-import { LocalNodeController, ServiceAction, ServiceUnit } from '../hooks/useLocalNode';
+import { LocalNodeController } from '../hooks/useLocalNode';
 
 interface DashboardViewProps {
   config: MmdvmConfiguration;
@@ -60,10 +58,8 @@ export function DashboardView({
   const aslState = localNode.services.asterisk || 'inactive';
   const mmdvmState = localNode.services.mmdvmhost || 'inactive';
   const gwState = localNode.services.dmrgateway || 'inactive';
-  const allmonState = localNode.services.allmon3 || 'inactive';
   const abState = localNode.services.analog_bridge || 'inactive';
   const mbState = localNode.services.mmdvm_bridge || 'inactive';
-  const emuState = localNode.services['md380-emu'] || 'inactive';
 
   const aslStatus = statusMeta(aslState);
   const mmdvmStatus = statusMeta(mmdvmState);
@@ -130,10 +126,6 @@ export function DashboardView({
     });
   }, [activeUsers, recentUsers, modeFilter, search]);
 
-  const handleServiceAction = async (unit: ServiceUnit, action: ServiceAction) => {
-    await localNode.controlService(unit, action);
-  };
-
   const handleAslConnect = async (e: FormEvent, mode: 'connect' | 'monitor') => {
     e.preventDefault();
     const cleaned = targetAslNode.replace(/\D/g, '');
@@ -152,69 +144,6 @@ export function DashboardView({
     config.modem.enabled && config.networks.dmrEnable && gwState !== 'active'
       ? localNode.live?.dmrgatewayLastError
       : null;
-
-  const serviceRows: { unit: ServiceUnit; label: string; desc: string; state: string }[] = [
-    ...(config.allstar.enabled || localNode.installed.asterisk
-      ? [
-          {
-            unit: 'asterisk' as ServiceUnit,
-            label: 'asterisk.service',
-            desc: 'AllStarLink 3 PBX / app_rpt',
-            state: aslState,
-          },
-        ]
-      : []),
-    ...(config.dvswitch.enabled || localNode.installed.dvswitch
-      ? [
-          {
-            unit: 'analog_bridge' as ServiceUnit,
-            label: 'analog_bridge.service',
-            desc: 'DVSwitch USRP ↔ AMBE Bridge',
-            state: abState,
-          },
-          {
-            unit: 'mmdvm_bridge' as ServiceUnit,
-            label: 'mmdvm_bridge.service',
-            desc: 'DVSwitch Digital Voice Bridge',
-            state: mbState,
-          },
-          {
-            unit: 'md380-emu' as ServiceUnit,
-            label: 'md380-emu.service',
-            desc: 'Software AMBE Vocoder',
-            state: emuState,
-          },
-        ]
-      : []),
-    ...(config.modem.enabled || localNode.installed.mmdvmhost
-      ? [
-          {
-            unit: 'mmdvmhost' as ServiceUnit,
-            label: 'mmdvmhost.service',
-            desc: 'RF Modem & Multi-Mode Host',
-            state: mmdvmState,
-          },
-          {
-            unit: 'dmrgateway' as ServiceUnit,
-            label: 'dmrgateway.service',
-            desc: 'DMR Master Authentication Bridge',
-            state: gwState,
-          },
-        ]
-      : []),
-    ...(config.allstar.installAllmon3
-      ? [
-          {
-            unit: 'allmon3' as ServiceUnit,
-            label: 'allmon3.service',
-            desc: 'Allmon3 Web Monitor',
-            state: allmonState,
-          },
-        ]
-      : []),
-  ];
-
-  const logUnits: ServiceUnit[] = ['asterisk', 'analog_bridge', 'mmdvm_bridge', 'mmdvmhost', 'dmrgateway'];
 
   return (
     <div className="space-y-6">
@@ -582,269 +511,168 @@ export function DashboardView({
         </section>
       )}
 
-      {/* Main 2-Column Operations Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: MMDVM Active & Last Heard Users */}
-        <section className="lg:col-span-7 bg-white dark:bg-[#0d2240] border border-blue-200 dark:border-blue-800/70 rounded-lg p-5 space-y-4 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
+      {/* Full-Width MMDVM Active & Last Heard Users Section */}
+      <section className="bg-white dark:bg-[#0d2240] border border-blue-200 dark:border-blue-800/70 rounded-lg p-5 space-y-4 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-base font-semibold text-slate-900 dark:text-white">
                 MMDVM Active &amp; Last Heard Users
               </h2>
-              <p className="text-xs text-slate-500 dark:text-blue-300/75">
-                Real-time RF and network transmissions parsed from MMDVMHost.
-              </p>
+              <span className={`text-xs font-mono font-semibold ${mmdvmStatus.color}`}>
+                MMDVMHost · {mmdvmStatus.label}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" aria-hidden="true" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search callsign or TG..."
-                  aria-label="Search MMDVM activity"
-                  className="min-h-[36px] w-44 pl-8 pr-2.5 py-1 text-xs rounded-md border border-blue-200 dark:border-blue-800 bg-white dark:bg-[#07162b] text-slate-900 dark:text-blue-50"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('configurator', 'modem')}
-                className="text-xs font-medium text-blue-700 dark:text-sky-400 hover:underline whitespace-nowrap"
-              >
-                Edit Modem
-              </button>
-            </div>
+            <p className="text-xs text-slate-500 dark:text-blue-300/75 mt-0.5">
+              Real-time RF and network transmissions parsed from /var/log/mmdvm/.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1 p-1 bg-blue-50 dark:bg-[#07162b] border border-blue-200/80 dark:border-blue-800 rounded-md w-fit">
-              {(['ALL', 'DMR', 'YSF', 'D-Star'] as ModeFilter[]).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setModeFilter(tab)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                    modeFilter === tab
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-700 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
-                  }`}
-                >
-                  {tab === 'ALL' ? 'All Modes' : tab}
-                </button>
-              ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" aria-hidden="true" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search callsign or TG..."
+                aria-label="Search MMDVM activity"
+                className="min-h-[36px] w-44 pl-8 pr-2.5 py-1 text-xs rounded-md border border-blue-200 dark:border-blue-800 bg-white dark:bg-[#07162b] text-slate-900 dark:text-blue-50"
+              />
             </div>
 
-            <div className="flex items-center gap-2">
-              {mmdvmState !== 'active' && gwState !== 'active' && (
-                <button
-                  type="button"
-                  disabled={localNode.mmdvmBusy}
-                  onClick={() => localNode.sendMmdvmCommand('reconnect')}
-                  className="min-h-[34px] px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  {localNode.mmdvmBusy ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Link2 className="w-3.5 h-3.5" />
-                  )}
-                  <span>Reconnect</span>
-                </button>
+            <button
+              type="button"
+              disabled={localNode.mmdvmBusy}
+              onClick={() => localNode.sendMmdvmCommand('disconnect')}
+              className="min-h-[36px] px-3 py-1.5 rounded-md border border-red-300 dark:border-red-800 bg-red-50/70 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
+            >
+              {localNode.mmdvmBusy ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Unlink className="w-3.5 h-3.5" />
               )}
+              <span>Disconnect MMDVM</span>
+            </button>
+
+            {mmdvmState !== 'active' && (
               <button
                 type="button"
-                disabled={localNode.mmdvmBusy || (mmdvmState !== 'active' && mmdvmState !== 'activating' && gwState !== 'active')}
-                onClick={() => localNode.sendMmdvmCommand('disconnect')}
-                className="min-h-[34px] px-3 py-1.5 rounded-md border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap"
+                disabled={localNode.mmdvmBusy}
+                onClick={() => localNode.sendMmdvmCommand('reconnect')}
+                className="min-h-[36px] px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
               >
                 {localNode.mmdvmBusy ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <Unlink className="w-3.5 h-3.5" />
+                  <Link2 className="w-3.5 h-3.5" />
                 )}
-                <span>Disconnect MMDVM</span>
+                <span>Reconnect</span>
               </button>
-            </div>
-          </div>
-
-          {localNode.mmdvmMessage && (
-            <p className="text-xs text-slate-700 dark:text-blue-100 bg-blue-50 dark:bg-[#07162b] px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
-              {localNode.mmdvmMessage}
-            </p>
-          )}
-
-          {filteredActivity.length === 0 ? (
-            <div className="py-12 text-center space-y-2 border-t border-blue-100 dark:border-blue-800/70">
-              <p className="text-sm font-medium text-slate-700 dark:text-blue-100">
-                {localNode.hostAvailable
-                  ? 'No recent digital voice transmissions logged yet'
-                  : 'Preview Mode — Live traffic appears when running on your Pi or Debian host'}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-blue-300/75 max-w-md mx-auto">
-                Key up on {config.station.rxFrequencyMhz} MHz (CC {config.networks.dmrColorCode}) or wait for incoming network talkgroup traffic to see live callsigns here.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto border-t border-blue-100 dark:border-blue-800/70">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-blue-100 dark:border-blue-800/70 text-slate-500 dark:text-blue-300/80">
-                    <th className="py-2.5 pr-3 font-medium">Time</th>
-                    <th className="py-2.5 pr-3 font-medium">Callsign</th>
-                    <th className="py-2.5 pr-3 font-medium">Mode</th>
-                    <th className="py-2.5 pr-3 font-medium">Target</th>
-                    <th className="py-2.5 pr-3 font-medium text-right">Duration</th>
-                    <th className="py-2.5 font-medium text-right">BER / Loss</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-100/70 dark:divide-blue-800/50">
-                  {filteredActivity.map((row) => (
-                    <tr key={row.id} className="hover:bg-blue-50/70 dark:hover:bg-blue-900/30">
-                      <td className="py-2.5 pr-3 font-mono tabular-nums text-slate-500 dark:text-blue-300/80 whitespace-nowrap">
-                        {row.timestamp}
-                      </td>
-                      <td className="py-2.5 pr-3 whitespace-nowrap">
-                        <span className="font-mono font-semibold text-slate-900 dark:text-white">
-                          {row.callsign}
-                        </span>
-                        {row.active && (
-                          <span className="ml-2 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                            TX Live
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 pr-3 text-slate-700 dark:text-blue-100 whitespace-nowrap">
-                        {row.mode} · {row.source}
-                      </td>
-                      <td className="py-2.5 pr-3 font-mono text-slate-800 dark:text-blue-100 whitespace-nowrap">
-                        {row.target}
-                      </td>
-                      <td className="py-2.5 pr-3 font-mono tabular-nums text-right text-slate-700 dark:text-blue-100 whitespace-nowrap">
-                        {row.duration}
-                      </td>
-                      <td className="py-2.5 font-mono tabular-nums text-right text-slate-500 dark:text-blue-300/80 whitespace-nowrap">
-                        {row.ber} / {row.loss}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Right: Service Controls + Live Journal Log Viewer */}
-        <section className="lg:col-span-5 space-y-6">
-          <div className="bg-white dark:bg-[#0d2240] border border-blue-200 dark:border-blue-800/70 rounded-lg p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                Service Controls
-              </h2>
-              <button
-                type="button"
-                onClick={() => onNavigate('configurator', 'dvswitch')}
-                className="text-xs font-medium text-blue-700 dark:text-sky-400 hover:underline whitespace-nowrap"
-              >
-                Edit DVSwitch
-              </button>
-            </div>
-
-            {localNode.serviceMessage && (
-              <p className="text-xs text-slate-700 dark:text-blue-100 bg-blue-50 dark:bg-[#07162b] p-2.5 rounded-md border border-blue-200 dark:border-blue-800">
-                {localNode.serviceMessage}
-              </p>
             )}
 
-            <div className="divide-y divide-blue-100 dark:divide-blue-800/70">
-              {serviceRows.map((svc) => {
-                const st = statusMeta(svc.state);
-                return (
-                  <div key={svc.unit} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-mono font-medium text-slate-900 dark:text-white truncate">
-                        {svc.label}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-blue-300/75">
-                        <span className={`font-semibold ${st.color}`}>{st.label}</span> · {svc.desc}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        disabled={localNode.serviceBusy !== null}
-                        onClick={() => handleServiceAction(svc.unit, 'start')}
-                        title={`Start ${svc.label}`}
-                        aria-label={`Start ${svc.label}`}
-                        className="p-2 rounded-md border border-blue-200 dark:border-blue-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-50"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={localNode.serviceBusy !== null}
-                        onClick={() => handleServiceAction(svc.unit, 'restart')}
-                        title={`Restart ${svc.label}`}
-                        aria-label={`Restart ${svc.label}`}
-                        className="p-2 rounded-md border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-sky-400 hover:bg-blue-50 dark:hover:bg-blue-900/40 disabled:opacity-50"
-                      >
-                        <RotateCw className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={localNode.serviceBusy !== null}
-                        onClick={() => handleServiceAction(svc.unit, 'stop')}
-                        title={`Stop ${svc.label}`}
-                        aria-label={`Stop ${svc.label}`}
-                        className="p-2 rounded-md border border-blue-200 dark:border-blue-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50"
-                      >
-                        <Square className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('configurator', 'modem')}
+              className="text-xs font-medium text-blue-700 dark:text-sky-400 hover:underline whitespace-nowrap px-1"
+            >
+              Edit Modem
+            </button>
           </div>
+        </div>
 
-          {/* Live Journal Log Viewer */}
-          <div className="bg-white dark:bg-[#0d2240] border border-blue-200 dark:border-blue-800/70 rounded-lg p-5 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1 p-1 bg-blue-50 dark:bg-[#07162b] border border-blue-200/80 dark:border-blue-800 rounded-md overflow-x-auto">
-                {logUnits.map((u) => (
-                  <button
-                    key={u}
-                    type="button"
-                    onClick={() => localNode.setLogsUnit(u)}
-                    className={`px-2 py-1 text-[11px] font-mono font-medium rounded transition-colors whitespace-nowrap ${
-                      localNode.logsUnit === u
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-700 dark:text-blue-200'
-                    }`}
-                  >
-                    {u}
-                  </button>
-                ))}
-              </div>
-
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-blue-100 dark:border-blue-800/70">
+          <div className="flex items-center gap-1 p-1 bg-blue-50 dark:bg-[#07162b] border border-blue-200/80 dark:border-blue-800 rounded-md w-fit">
+            {(['ALL', 'DMR', 'YSF', 'D-Star'] as ModeFilter[]).map((tab) => (
               <button
+                key={tab}
                 type="button"
-                disabled={localNode.logsLoading}
-                onClick={() => localNode.refreshLogs()}
-                className="text-xs font-medium text-slate-700 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white inline-flex items-center gap-1 whitespace-nowrap"
+                onClick={() => setModeFilter(tab)}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                  modeFilter === tab
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-700 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
+                }`}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${localNode.logsLoading ? 'animate-spin' : ''}`} />
-                <span>Reload</span>
+                {tab === 'ALL' ? 'All Modes' : tab}
               </button>
-            </div>
-
-            <pre className="h-64 overflow-auto rounded-md bg-[#061224] text-blue-100 p-3 text-[11px] leading-relaxed font-mono border border-blue-900/70">
-              {localNode.serviceLogs.length > 0
-                ? localNode.serviceLogs.join('\n')
-                : `No log lines returned for ${localNode.logsUnit}.service yet.`}
-            </pre>
+            ))}
           </div>
-        </section>
-      </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('services')}
+            className="text-xs font-medium text-blue-700 dark:text-sky-400 hover:underline whitespace-nowrap"
+          >
+            Open Services &amp; Logs →
+          </button>
+        </div>
+
+        {localNode.mmdvmMessage && (
+          <p className="text-xs text-slate-700 dark:text-blue-100 bg-blue-50 dark:bg-[#07162b] px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
+            {localNode.mmdvmMessage}
+          </p>
+        )}
+
+        {filteredActivity.length === 0 ? (
+          <div className="py-10 text-center space-y-2 border-t border-blue-100 dark:border-blue-800/70">
+            <p className="text-sm font-medium text-slate-700 dark:text-blue-100">
+              {localNode.hostAvailable
+                ? 'No recent digital voice transmissions logged yet'
+                : 'Preview Mode — Live traffic appears when running on your Pi or Debian host'}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-blue-300/75 max-w-md mx-auto">
+              Key up on {config.station.rxFrequencyMhz} MHz (CC {config.networks.dmrColorCode}) or wait for incoming network talkgroup traffic to see live callsigns here.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto border-t border-blue-100 dark:border-blue-800/70">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-blue-100 dark:border-blue-800/70 text-slate-500 dark:text-blue-300/80">
+                  <th className="py-2.5 pr-3 font-medium">Time</th>
+                  <th className="py-2.5 pr-3 font-medium">Callsign</th>
+                  <th className="py-2.5 pr-3 font-medium">Mode</th>
+                  <th className="py-2.5 pr-3 font-medium">Target</th>
+                  <th className="py-2.5 pr-3 font-medium text-right">Duration</th>
+                  <th className="py-2.5 font-medium text-right">BER / Loss</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-blue-100/70 dark:divide-blue-800/50">
+                {filteredActivity.map((row) => (
+                  <tr key={row.id} className="hover:bg-blue-50/70 dark:hover:bg-blue-900/30">
+                    <td className="py-2.5 pr-3 font-mono tabular-nums text-slate-500 dark:text-blue-300/80 whitespace-nowrap">
+                      {row.timestamp}
+                    </td>
+                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                      <span className="font-mono font-semibold text-slate-900 dark:text-white">
+                        {row.callsign}
+                      </span>
+                      {row.active && (
+                        <span className="ml-2 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                          TX Live
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-slate-700 dark:text-blue-100 whitespace-nowrap">
+                      {row.mode} · {row.source}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-slate-800 dark:text-blue-100 whitespace-nowrap">
+                      {row.target}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono tabular-nums text-right text-slate-700 dark:text-blue-100 whitespace-nowrap">
+                      {row.duration}
+                    </td>
+                    <td className="py-2.5 font-mono tabular-nums text-right text-slate-500 dark:text-blue-300/80 whitespace-nowrap">
+                      {row.ber} / {row.loss}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

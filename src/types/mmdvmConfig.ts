@@ -1,4 +1,4 @@
-export type WorkspaceView = 'dashboard' | 'configurator' | 'installer' | 'files';
+export type WorkspaceView = 'dashboard' | 'services' | 'configurator' | 'installer' | 'files';
 
 export type ConfigTab =
   | 'station'
