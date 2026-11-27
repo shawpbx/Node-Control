@@ -617,22 +617,61 @@ export function DashboardView({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 p-1 bg-blue-50 dark:bg-[#07162b] border border-blue-200/80 dark:border-blue-800 rounded-md w-fit">
-            {(['ALL', 'DMR', 'YSF', 'D-Star'] as ModeFilter[]).map((tab) => (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1 p-1 bg-blue-50 dark:bg-[#07162b] border border-blue-200/80 dark:border-blue-800 rounded-md w-fit">
+              {(['ALL', 'DMR', 'YSF', 'D-Star'] as ModeFilter[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setModeFilter(tab)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                    modeFilter === tab
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-700 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
+                  }`}
+                >
+                  {tab === 'ALL' ? 'All Modes' : tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {mmdvmState !== 'active' && gwState !== 'active' && (
+                <button
+                  type="button"
+                  disabled={localNode.mmdvmBusy}
+                  onClick={() => localNode.sendMmdvmCommand('reconnect')}
+                  className="min-h-[34px] px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  {localNode.mmdvmBusy ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Link2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>Reconnect</span>
+                </button>
+              )}
               <button
-                key={tab}
                 type="button"
-                onClick={() => setModeFilter(tab)}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                  modeFilter === tab
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-700 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
-                }`}
+                disabled={localNode.mmdvmBusy || (mmdvmState !== 'active' && mmdvmState !== 'activating' && gwState !== 'active')}
+                onClick={() => localNode.sendMmdvmCommand('disconnect')}
+                className="min-h-[34px] px-3 py-1.5 rounded-md border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap"
               >
-                {tab === 'ALL' ? 'All Modes' : tab}
+                {localNode.mmdvmBusy ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Unlink className="w-3.5 h-3.5" />
+                )}
+                <span>Disconnect MMDVM</span>
               </button>
-            ))}
+            </div>
           </div>
+
+          {localNode.mmdvmMessage && (
+            <p className="text-xs text-slate-700 dark:text-blue-100 bg-blue-50 dark:bg-[#07162b] px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
+              {localNode.mmdvmMessage}
+            </p>
+          )}
 
           {filteredActivity.length === 0 ? (
             <div className="py-12 text-center space-y-2 border-t border-blue-100 dark:border-blue-800/70">

@@ -43,6 +43,7 @@ LOGIN_WINDOW_SECONDS = 60
 ALLOWED_SERVICES = ("asterisk", "allmon3", "mmdvmhost", "dmrgateway", "md380-emu", "analog_bridge", "mmdvm_bridge")
 ALLOWED_ACTIONS = ("start", "stop", "restart")
 ALLOWED_ASL_ACTIONS = ("connect", "monitor", "disconnect", "disconnect_all")
+ALLOWED_MMDVM_ACTIONS = ("disconnect", "reconnect")
 
 auth_lock = threading.Lock()
 sessions: dict[str, dict] = {}
@@ -2767,6 +2768,58 @@ class WebGuiHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(500, {"error": (proc.stderr or proc.stdout).strip() or "Asterisk command failed."})
                 return
             self._send_json(200, {"ok": True, "output": (proc.stdout or "Command sent.").strip()})
+            return
+
+        if path == "/api/mmdvm/command":
+            tok, _ = self._require_auth()
+            if not tok:
+                return
+            if os.geteuid() != 0:
+                self._send_json(403, {"error": "Server must run as root to control MMDVM services."})
+                return
+            try:
+                body = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            action = _clean_line(body.get("action", ""))
+            if action not in ALLOWED_MMDVM_ACTIONS:
+                self._send_json(400, {"error": "Invalid MMDVM command action."})
+                return
+
+            saved = _load_saved_config()
+            dmr_enabled = True
+            if isinstance(saved, dict) and isinstance(saved.get("networks"), dict):
+                dmr_enabled = bool(saved["networks"].get("dmrEnable", True))
+
+            errors: list[str] = []
+            if action == "disconnect":
+                for unit in ("mmdvmhost", "dmrgateway"):
+                    if _unit_exists(unit):
+                        proc = subprocess.run(["systemctl", "stop", f"{unit}.service"], capture_output=True, text=True, timeout=15)
+                        if proc.returncode != 0:
+                            errors.append((proc.stderr or proc.stdout).strip() or f"Failed to stop {unit}")
+            else:
+                units = (["dmrgateway"] if dmr_enabled else []) + ["mmdvmhost"]
+                for unit in units:
+                    if _unit_exists(unit):
+                        proc = subprocess.run(["systemctl", "start", f"{unit}.service"], capture_output=True, text=True, timeout=15)
+                        if proc.returncode != 0:
+                            errors.append((proc.stderr or proc.stdout).strip() or f"Failed to start {unit}")
+
+            states = {
+                u: (subprocess.run(["systemctl", "is-active", u], capture_output=True, text=True, timeout=3).stdout.strip() or "inactive")
+                for u in ("mmdvmhost", "dmrgateway")
+            }
+            if errors:
+                self._send_json(500, {"error": "; ".join(errors), "states": states})
+                return
+            msg = (
+                "MMDVM disconnected (mmdvmhost & dmrgateway stopped)."
+                if action == "disconnect"
+                else "MMDVM reconnected (services started)."
+            )
+            self._send_json(200, {"ok": True, "action": action, "states": states, "output": msg})
             return
 
         self._send_json(404, {"error": "Unknown API endpoint."})

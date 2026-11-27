@@ -84,6 +84,7 @@ export type ServiceUnit =
   | 'mmdvm_bridge';
 export type ServiceAction = 'start' | 'stop' | 'restart';
 export type AslCommandAction = 'connect' | 'monitor' | 'disconnect' | 'disconnect_all';
+export type MmdvmCommandAction = 'disconnect' | 'reconnect';
 
 const EMPTY_JOB: JobState = {
   mode: 'idle',
@@ -122,6 +123,8 @@ export interface LocalNodeController {
   serviceMessage: string | null;
   aslBusy: boolean;
   aslMessage: string | null;
+  mmdvmBusy: boolean;
+  mmdvmMessage: string | null;
   logsUnit: ServiceUnit;
   setLogsUnit: (unit: ServiceUnit) => void;
   serviceLogs: string[];
@@ -140,6 +143,7 @@ export interface LocalNodeController {
     action: AslCommandAction,
     targetNode?: string
   ) => Promise<boolean>;
+  sendMmdvmCommand: (action: MmdvmCommandAction) => Promise<boolean>;
 }
 
 export function useLocalNode(
@@ -187,6 +191,8 @@ export function useLocalNode(
   const [serviceMessage, setServiceMessage] = useState<string | null>(null);
   const [aslBusy, setAslBusy] = useState(false);
   const [aslMessage, setAslMessage] = useState<string | null>(null);
+  const [mmdvmBusy, setMmdvmBusy] = useState(false);
+  const [mmdvmMessage, setMmdvmMessage] = useState<string | null>(null);
   const [logsUnit, setLogsUnit] = useState<ServiceUnit>('mmdvmhost');
   const [serviceLogs, setServiceLogs] = useState<string[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -745,6 +751,55 @@ export function useLocalNode(
     [authHeaders, fetchLive, handleUnauthorized, hostAvailable]
   );
 
+  const sendMmdvmCommand = useCallback(
+    async (action: MmdvmCommandAction): Promise<boolean> => {
+      setMmdvmBusy(true);
+      setMmdvmMessage(null);
+      if (!hostAvailable) {
+        const nextState = action === 'disconnect' ? 'inactive' : 'active';
+        setServices((prev) => ({
+          ...prev,
+          mmdvmhost: nextState,
+          dmrgateway: nextState,
+        }));
+        setMmdvmMessage(
+          action === 'disconnect'
+            ? 'Preview Mode: MMDVM disconnected (mmdvmhost & dmrgateway stopped).'
+            : 'Preview Mode: MMDVM reconnected (mmdvmhost & dmrgateway started).'
+        );
+        setMmdvmBusy(false);
+        return true;
+      }
+      try {
+        const res = await fetch('/api/mmdvm/command', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          handleUnauthorized();
+          return false;
+        }
+        if (!res.ok) {
+          setMmdvmMessage(data.error || `Failed to ${action} MMDVM.`);
+          await fetchLive();
+          return false;
+        }
+        setMmdvmMessage(data.output || (action === 'disconnect' ? 'MMDVM disconnected.' : 'MMDVM reconnected.'));
+        await fetchLive();
+        await refreshLogs('mmdvmhost');
+        return true;
+      } catch {
+        setMmdvmMessage('Unable to reach /api/mmdvm/command.');
+        return false;
+      } finally {
+        setMmdvmBusy(false);
+      }
+    },
+    [authHeaders, fetchLive, handleUnauthorized, hostAvailable, refreshLogs]
+  );
+
   return {
     checking,
     hostAvailable,
@@ -769,6 +824,8 @@ export function useLocalNode(
     serviceMessage,
     aslBusy,
     aslMessage,
+    mmdvmBusy,
+    mmdvmMessage,
     logsUnit,
     setLogsUnit,
     serviceLogs,
@@ -783,5 +840,6 @@ export function useLocalNode(
     applyConfigOnly,
     controlService,
     sendAslCommand,
+    sendMmdvmCommand,
   };
 }
